@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.0.0/firebase-app.js";
-import { getDatabase, ref, get, child } from "https://www.gstatic.com/firebasejs/9.0.0/firebase-database.js";
+import { getDatabase, ref, get, child, remove, query, orderByChild, limitToLast } from "https://www.gstatic.com/firebasejs/9.0.0/firebase-database.js";
 
 // Firebase Config
 const firebaseConfig = {
@@ -14,43 +14,62 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+// Get <ol> element
+const olEl = document.getElementById("highscore-list");
 
 // Function to fetch and display high scores
 function printHighscores() {
-  const scoresRef = db.ref("scores");
+  const scoresQuery = query(ref(db, "scores"), orderByChild("score"), limitToLast(10));
 
-  scoresRef.orderByChild("score").limitToLast(10).once("value", (snapshot) => {
-    const data = snapshot.val();
-    const olEl = document.getElementById("highscores");
-    const scoresArray = [];
+  get(scoresQuery).then((snapshot) => {
+    if (snapshot.exists()) {
+      const scoresArray = [];
 
-    for (let key in data) {
-      scoresArray.push(data[key]);
+      snapshot.forEach((childSnapshot) => {
+        const key = childSnapshot.key;  // Get the key (player's name)
+        const value = childSnapshot.val();  // Get the actual score and timestamp data
+
+        // Push the score data into the array
+        scoresArray.push({
+          name: key, // player's name (key)
+          ...value   // score and timestamp (value)
+        });
+      });
+
+      // Sort in descending order
+      scoresArray.sort((a, b) => b.score - a.score);
+
+      // Clear existing list
+      olEl.innerHTML = "";
+
+      // Display top scores
+      scoresArray.forEach((entry, index) => {
+        const li = document.createElement("li");
+        li.textContent = `${entry.name.toUpperCase()} - ${entry.score}`;
+        olEl.appendChild(li);
+      });
+    } else {
+      olEl.innerHTML = "<li>No scores found.</li>";
     }
-
-    // Sort in descending order based on score
-    scoresArray.sort((a, b) => b.score - a.score);
-
-    // Clear the leaderboard before displaying new data
-    olEl.innerHTML = "";
-
-    // Display top 10 scores
-    scoresArray.forEach((score, index) => {
-      const li = document.createElement("li");
-      li.textContent = `${index + 1}. ${score.name} - ${score.score}`;
-      olEl.appendChild(li);
-    });
+  }).catch((error) => {
+    console.error("Error fetching scores:", error);
   });
 }
 
-// Clear the leaderboard in Firebase when the user clicks "Clear Highscores"
-document.getElementById("clear").onclick = () => {
-  db.ref("scores").remove();
-  location.reload();  // Reload page to reflect changes
-};
+document.addEventListener("DOMContentLoaded", function () {
+  const clearBtn = document.getElementById("clear");
+  if (clearBtn) {
+    clearBtn.addEventListener("click", () => {
+      const dbRef = ref(db, "scores");
+      get(dbRef).then(() => {
+        dbRef.remove();
+        location.reload();
+      });
+    });
+  }
 
-// Fetch and display high scores when the page loads
-printHighscores();
-
+  printHighscores();
+});

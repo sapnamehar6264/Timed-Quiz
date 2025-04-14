@@ -179,20 +179,27 @@ function quizEnd() {
     questionsEl.setAttribute("class", "hide");
 }
 
-// Save the score to Firebase
 function saveHighscore() {
-    const name = nameEl.value.trim();
-    if (name !== "") {
-        const newScore = {
-            name: name,
-            score: score,  // Store the actual score
-            timestamp: Date.now()
-        };
+  const name = nameEl.value.trim().toLowerCase(); // normalize to lowercase
+  if (name !== "") {
+    const playerRef = firebase.database().ref("scores/" + name);
 
-        firebase.database().ref("scores").push(newScore);
+    playerRef.once("value").then((snapshot) => {
+      const existing = snapshot.val();
+      if (!existing || score > existing.score) {
+        playerRef.set({
+          name: name,
+          score: score,
+          timestamp: Date.now()
+        });
         alert("Score submitted!");
-    }
+      } else {
+        alert("A higher or equal score already exists for this name.");
+      }
+    });
+  }
 }
+
 
 
 // Save user's score after pressing enter
